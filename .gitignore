@@ -1,0 +1,33 @@
+# Xcode
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+!*.xcodeproj/project.xcworkspace/
+*.xcworkspace/*
+!*.xcworkspace/contents.xcworkspacedata
+!*.xcworkspace/xcshareddata/
+
+# Build
+build/
+DerivedData/
+
+# Archives
+*.xcarchive
+
+# Debugging
+*.dSYM.zip
+*.dSYM
+
+# CocoaPods
+Pods/
+
+# Carthage
+Carthage/Build/
+
+# User settings
+*.xcuserstate
+project.xcworkspace/xcuserdata/
+*.xcuserdata
+
+# macOS
+.DS_Store
