@@ -286,31 +286,44 @@ struct ContentView: View {
     
     private func sendToGraphQL() {
         let now = Date()
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let timestamp = formatter.string(from: now)
         
-        // Crea l'input per la mutation
-        let activityInput: [String: Any] = [
-            "ts": timestamp,
+        // Formatter per timestamp completo
+        let timestampFormatter = DateFormatter()
+        timestampFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        let timestamp = timestampFormatter.string(from: now)
+        
+        // Formatter per data
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let date = dateFormatter.string(from: now)
+        
+        // Crea l'input per la mutation secondo lo schema HealthTotalsInput
+        let healthInput: [String: Any] = [
+            "timestamp": timestamp,
+            "date": date,
             "steps": healthManager.todaySteps,
-            "caloriesOut": healthManager.todayTotalCalories, // Usiamo il totale
-            "source": "APPLE_HEALTH"
+            "caloriesOut": healthManager.todayTotalCalories,
+            "userId": "000001"
         ]
         
         let mutation = """
-        mutation IngestActivityEvents($input: [ActivityMinuteInput!]!, $userId: String!) {
-            ingestActivityEvents(input: $input, userId: $userId) {
+        mutation SyncHealthTotals($input: HealthTotalsInput!, $userId: String) {
+            syncHealthTotals(input: $input, userId: $userId) {
                 accepted
-                rejected {
-                    reason
+                duplicate
+                reset
+                delta {
+                    stepsDelta
+                    caloriesOutDelta
+                    stepsTotal
+                    caloriesOutTotal
                 }
             }
         }
         """
         
         let variables: [String: Any] = [
-            "input": [activityInput],
+            "input": healthInput,
             "userId": "000001"
         ]
         
@@ -333,14 +346,7 @@ struct ContentView: View {
         
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-            
-            // DEBUG: Stampa i dati che stiamo inviando
-            print("🚀 Invio dati a GraphQL:")
-            if let jsonData = request.httpBody,
-               let jsonString = String(data: jsonData, encoding: .utf8) {
-                print(jsonString)
-            }
-            
+            print("🚀 Invio dati:", String(data: request.httpBody!, encoding: .utf8) ?? "")
         } catch {
             DispatchQueue.main.async {
                 isLoading = false
@@ -353,28 +359,16 @@ struct ContentView: View {
             DispatchQueue.main.async {
                 isLoading = false
                 
-                // DEBUG: Stampa la risposta
                 if let data = data, let responseString = String(data: data, encoding: .utf8) {
-                    print("📥 Risposta server:")
-                    print(responseString)
+                    print("📥 Risposta server:", responseString)
                 }
                 
-                if let error = error {
-                    print("❌ Errore rete: \(error)")
-                    statusMessage = "❌ Errore rete: \(error.localizedDescription)"
-                    return
-                }
-                
-                if let httpResponse = response as? HTTPURLResponse {
-                    print("📊 Status code: \(httpResponse.statusCode)")
-                    if httpResponse.statusCode == 200 {
-                        statusMessage = "✅ Sincronizzato!"
-                        lastSyncTime = DateFormatter.timeFormatter.string(from: Date())
-                        // Ricarica il summary dopo il sync
-                        loadDailySummary()
-                    } else {
-                        statusMessage = "❌ Server error: \(httpResponse.statusCode)"
-                    }
+                if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                    statusMessage = "✅ Sincronizzato!"
+                    lastSyncTime = DateFormatter.timeFormatter.string(from: Date())
+                    loadDailySummary()
+                } else {
+                    statusMessage = "❌ Errore sync"
                 }
             }
         }.resume()
